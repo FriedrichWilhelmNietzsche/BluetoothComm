@@ -41,7 +41,7 @@ if errorlevel 1 (
     echo.
     echo Create empty repo first: https://github.com/new
     set /p REPO_URL=Enter GitHub repo URL: 
-    git remote add origin "!REPO_URL!"
+    git remote add origin https://github.com/FriedrichWilhelmNietzsche/BluetoothComm.git
 )
 
 echo.
