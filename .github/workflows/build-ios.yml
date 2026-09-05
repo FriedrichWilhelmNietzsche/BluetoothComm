@@ -55,21 +55,26 @@ jobs:
     name: Build iOS IPA (Signed)
     runs-on: macos-14
     timeout-minutes: 40
-    if: ${{ secrets.IOS_CERTIFICATE != '' }}
+    env:
+      HAS_SIGNING: ${{ secrets.IOS_CERTIFICATE != '' }}
 
     steps:
     - name: Checkout
+      if: env.HAS_SIGNING == 'true'
       uses: actions/checkout@v4
 
     - name: Setup .NET 10
+      if: env.HAS_SIGNING == 'true'
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
 
     - name: Install MAUI Workload
+      if: env.HAS_SIGNING == 'true'
       run: dotnet workload install maui
 
     - name: Install Apple Certificate
+      if: env.HAS_SIGNING == 'true'
       env:
         IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
         IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
@@ -84,6 +89,7 @@ jobs:
         security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
 
     - name: Install Provisioning Profile
+      if: env.HAS_SIGNING == 'true'
       env:
         IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
       run: |
@@ -93,6 +99,7 @@ jobs:
         cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
 
     - name: Build Signed IPA
+      if: env.HAS_SIGNING == 'true'
       run: |
         dotnet build BluetoothComm.csproj \
           -c Release \
@@ -101,6 +108,7 @@ jobs:
           -p:BuildIpa=true
 
     - name: Upload IPA
+      if: env.HAS_SIGNING == 'true'
       uses: actions/upload-artifact@v4
       with:
         name: iOS-IPA
