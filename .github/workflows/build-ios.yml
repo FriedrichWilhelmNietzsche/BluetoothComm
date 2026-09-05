@@ -6,23 +6,33 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ========== 任务1：模拟器编译（无需签名，每次推送自动运行）==========
   build-simulator:
     name: Build iOS Simulator
     runs-on: macos-14
-    timeout-minutes: 30
+    timeout-minutes: 40
 
     steps:
     - name: Checkout
       uses: actions/checkout@v4
+
+    - name: Show environment
+      run: |
+        xcodebuild -version
+        dotnet --version 2>/dev/null || echo "dotnet not preinstalled"
 
     - name: Setup .NET 10
       uses: actions/setup-dotnet@v4
       with:
         dotnet-version: '10.0.x'
 
+    - name: Verify .NET
+      run: dotnet --list-sdks
+
     - name: Install MAUI Workload
       run: dotnet workload install maui
+
+    - name: Restore
+      run: dotnet restore BluetoothComm.csproj
 
     - name: Build for iOS Simulator
       run: |
@@ -30,16 +40,17 @@ jobs:
           -c Debug \
           -f net10.0-ios \
           -p:RuntimeIdentifier=iossimulator-x64 \
-          -p:BuildIpa=false
+          -p:BuildIpa=false \
+          -v minimal
 
     - name: Upload Build Output
       uses: actions/upload-artifact@v4
+      if: always()
       with:
         name: iOS-Simulator-Build
-        path: '**/Debug/net10.0-ios/iossimulator-x64/**/*.app'
+        path: '**/Debug/net10.0-ios/**/*.app'
         retention-days: 7
 
-  # ========== 任务2：真机 IPA（需配置签名 Secrets 后自动运行）==========
   build-ipa:
     name: Build iOS IPA (Signed)
     runs-on: macos-14
@@ -87,11 +98,7 @@ jobs:
           -c Release \
           -f net10.0-ios \
           -p:ArchiveOnBuild=true \
-          -p:BuildIpa=true \
-          -p:CodesignKey="iPhone Developer" \
-          -p:CodesignProvision="$IOS_PROVISIONING_PROFILE_NAME"
-      env:
-        IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
+          -p:BuildIpa=true
 
     - name: Upload IPA
       uses: actions/upload-artifact@v4
