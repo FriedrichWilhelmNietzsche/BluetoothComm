@@ -1,0 +1,101 @@
+name: Build iOS
+
+on:
+  push:
+    branches: [ main ]
+  workflow_dispatch:
+
+jobs:
+  # ========== 任务1：模拟器编译（无需签名，每次推送自动运行）==========
+  build-simulator:
+    name: Build iOS Simulator
+    runs-on: macos-14
+    timeout-minutes: 30
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Install MAUI Workload
+      run: dotnet workload install maui
+
+    - name: Build for iOS Simulator
+      run: |
+        dotnet build BluetoothComm.csproj \
+          -c Debug \
+          -f net10.0-ios \
+          -p:RuntimeIdentifier=iossimulator-x64 \
+          -p:BuildIpa=false
+
+    - name: Upload Build Output
+      uses: actions/upload-artifact@v4
+      with:
+        name: iOS-Simulator-Build
+        path: '**/Debug/net10.0-ios/iossimulator-x64/**/*.app'
+        retention-days: 7
+
+  # ========== 任务2：真机 IPA（需配置签名 Secrets 后自动运行）==========
+  build-ipa:
+    name: Build iOS IPA (Signed)
+    runs-on: macos-14
+    timeout-minutes: 40
+    if: ${{ secrets.IOS_CERTIFICATE != '' }}
+
+    steps:
+    - name: Checkout
+      uses: actions/checkout@v4
+
+    - name: Setup .NET 10
+      uses: actions/setup-dotnet@v4
+      with:
+        dotnet-version: '10.0.x'
+
+    - name: Install MAUI Workload
+      run: dotnet workload install maui
+
+    - name: Install Apple Certificate
+      env:
+        IOS_CERTIFICATE: ${{ secrets.IOS_CERTIFICATE }}
+        IOS_CERTIFICATE_PASSWORD: ${{ secrets.IOS_CERTIFICATE_PASSWORD }}
+        KEYCHAIN_PASSWORD: ${{ secrets.KEYCHAIN_PASSWORD }}
+      run: |
+        CERT_PATH=$RUNNER_TEMP/cert.p12
+        echo -n "$IOS_CERTIFICATE" | base64 --decode -o $CERT_PATH
+        security create-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        security default-keychain build.keychain
+        security unlock-keychain -p "$KEYCHAIN_PASSWORD" build.keychain
+        security import $CERT_PATH -k build.keychain -P "$IOS_CERTIFICATE_PASSWORD" -T /usr/bin/codesign
+        security set-key-partition-list -S apple-tool:,apple:,codesign: -s -k "$KEYCHAIN_PASSWORD" build.keychain
+
+    - name: Install Provisioning Profile
+      env:
+        IOS_PROVISIONING_PROFILE: ${{ secrets.IOS_PROVISIONING_PROFILE }}
+      run: |
+        PP_PATH=$RUNNER_TEMP/profile.mobileprovision
+        echo -n "$IOS_PROVISIONING_PROFILE" | base64 --decode -o $PP_PATH
+        mkdir -p ~/Library/MobileDevice/Provisioning\ Profiles
+        cp $PP_PATH ~/Library/MobileDevice/Provisioning\ Profiles/
+
+    - name: Build Signed IPA
+      run: |
+        dotnet build BluetoothComm.csproj \
+          -c Release \
+          -f net10.0-ios \
+          -p:ArchiveOnBuild=true \
+          -p:BuildIpa=true \
+          -p:CodesignKey="iPhone Developer" \
+          -p:CodesignProvision="$IOS_PROVISIONING_PROFILE_NAME"
+      env:
+        IOS_PROVISIONING_PROFILE_NAME: ${{ secrets.IOS_PROVISIONING_PROFILE_NAME }}
+
+    - name: Upload IPA
+      uses: actions/upload-artifact@v4
+      with:
+        name: iOS-IPA
+        path: '**/Release/net10.0-ios/**/*.ipa'
+        retention-days: 30
