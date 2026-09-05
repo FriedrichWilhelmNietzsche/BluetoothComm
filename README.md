@@ -24,7 +24,9 @@
 
 ## 界面预览
 
-![App 界面预览](docs/images/app-preview.png)
+| 主界面 | 设备扫描 | 通讯记录 |
+|:------:|:--------:|:--------:|
+| ![主界面](docs/images/screenshot-1.jpg) | ![设备扫描](docs/images/screenshot-2.jpg) | ![通讯记录](docs/images/screenshot-3.jpg) |
 
 ## Modbus 协议
 
